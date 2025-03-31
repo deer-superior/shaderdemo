@@ -8,179 +8,217 @@
         body {
             margin: 0;
             padding: 0;
-            background-color: #1e1e1e;
-            font-family: Arial, sans-serif;
-            color: white;
+            background: #000000;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            color: #ffffff;
+            height: 100vh;
+            overflow: hidden;
         }
         
         .container {
-            display: flex;
             height: 100vh;
+            display: flex;
             flex-direction: column;
         }
         
         .canvas-container {
-            flex: 1;
-            min-height: 300px;
+            height: 100vh;
+            width: 100vw;
             position: relative;
-            margin: 20px;
-            border: 1px solid #444;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            background: #000000;
         }
         
         #shader-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
             width: 100%;
             height: 100%;
         }
         
         .control-panel {
-            padding: 20px;
-            background-color: #2a2a2a;
-            border-top: 1px solid #444;
+            position: fixed;
+            top: 20px;
+            right: 0;
+            transform: translateX(100%);
+            padding: 16px;
+            background: rgba(40, 40, 40, 0.95);
+            border-radius: 14px 0 0 14px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            box-shadow: -8px 8px 32px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease-in-out;
+            z-index: 100;
+        }
+        
+        .control-panel.active {
+            transform: translateX(0);
+        }
+        
+        .menu-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            background: rgba(80, 80, 80, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            backdrop-filter: blur(10px);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            z-index: 101;
+        }
+        
+        .menu-button:hover {
+            background: rgba(100, 100, 100, 0.9);
+            transform: scale(1.1);
+        }
+        
+        .menu-button span {
+            display: block;
+            width: 20px;
+            height: 2px;
+            background: #ffffff;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        
+        .menu-button span::before,
+        .menu-button span::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: inherit;
+            transition: inherit;
+        }
+        
+        .menu-button span::before {
+            top: -6px;
+        }
+        
+        .menu-button span::after {
+            top: 6px;
         }
         
         .editor-container {
             display: flex;
-            margin-bottom: 20px;
-            gap: 20px;
+            flex-direction: column;
+            gap: 16px;
+            width: 300px;
         }
         
         .editor-column {
-            flex: 1;
+            background: rgba(30, 30, 30, 0.8);
+            border-radius: 8px;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         
-        .editor-label {
-            display: block;
-            margin-bottom: 5px;
-            font-size: 14px;
-            color: #aaa;
+        .button-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-top: 16px;
+        }
+        
+        button {
+            background: rgba(60, 60, 60, 0.8);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        button:hover {
+            background: rgba(80, 80, 80, 0.9);
         }
         
         .code-textarea {
             width: 100%;
             height: 200px;
-            background-color: #333;
-            color: #ccc;
-            font-family: monospace;
-            padding: 10px;
-            border: 1px solid #555;
-            border-radius: 4px;
+            background: rgba(20, 20, 20, 0.8);
+            color: #ffffff;
+            font-family: 'Menlo', monospace;
+            font-size: 13px;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
             resize: vertical;
-            box-sizing: border-box;
-        }
-        
-        .code-textarea:focus {
-            outline: none;
-            border-color: #6e9eff;
-        }
-        
-        #current-shader {
-            background-color: #3a3a3a;
-            color: #888;
-        }
-        
-        #editable-shader {
-            background-color: #2d2d2d;
-            color: white;
-        }
-        
-        .button-container {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-        }
-        
-        button {
-            background-color: #4a6da7;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 10px 16px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background-color 0.3s;
-        }
-        
-        button:hover {
-            background-color: #5a7db7;
-        }
-        
-        #copy-link {
-            background-color: #567d46;
-        }
-        
-        #copy-link:hover {
-            background-color: #668d56;
-        }
-        
-        #apply-shader {
-            background-color: #8c4e4e;
-        }
-        
-        #apply-shader:hover {
-            background-color: #9c5e5e;
         }
         
         .notification {
+            /* Keep existing notification styles */
             position: fixed;
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background-color: rgba(0, 0, 0, 0.7);
+            background: rgba(40, 40, 40, 0.9);
             color: white;
             padding: 10px 20px;
-            border-radius: 4px;
+            border-radius: 8px;
+            font-size: 13px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(20px);
             z-index: 200;
             opacity: 0;
             transition: opacity 0.3s;
-        }
-        
-        .notification.show {
-            opacity: 1;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Shader Canvas Area -->
+        <!-- Floating Menu Button -->
+        <div class="menu-button" id="menu-button">
+            <span></span>
+        </div>
+        
+        <!-- Full-screen Canvas -->
         <div class="canvas-container">
             <canvas id="shader-canvas"></canvas>
         </div>
         
-        <!-- Control Panel -->
-        <div class="control-panel">
+        <!-- Slide-out Control Panel -->
+        <div class="control-panel" id="control-panel">
             <div class="editor-container">
-                <!-- Current Shader (read-only) -->
                 <div class="editor-column">
-                    <label class="editor-label">Current Shader (read-only):</label>
+                    <label class="editor-label">Current Shader</label>
                     <textarea id="current-shader" class="code-textarea" readonly></textarea>
                 </div>
-                
-                <!-- Editable Shader -->
                 <div class="editor-column">
-                    <label class="editor-label">Editable Shader:</label>
+                    <label class="editor-label">Edit Shader</label>
                     <textarea id="editable-shader" class="code-textarea"></textarea>
                 </div>
             </div>
             
             <div class="button-container">
-                <button id="new-shader">Generate New Shader</button>
-                <button id="random-colors">Randomize Colors</button>
+                <button id="new-shader">New Shader</button>
+                <button id="random-colors">Random Colors</button>
                 <button id="apply-shader">Apply Changes</button>
-                <button id="copy-link">Copy Sharable Link</button>
+                <button id="copy-link">Share Link</button>
             </div>
         </div>
     </div>
     
     <div id="notification" class="notification"></div>
     
-    <!-- Load LZString for compression -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
-    
-    <!-- Load the main application code -->
     <script src="shader-app.js"></script>
+    <script>
+        // Add menu toggle functionality
+        const menuButton = document.getElementById('menu-button');
+        const controlPanel = document.getElementById('control-panel');
+        
+        menuButton.addEventListener('click', () => {
+            controlPanel.classList.toggle('active');
+            menuButton.classList.toggle('active');
+        });
+    </script>
 </body>
 </html>
