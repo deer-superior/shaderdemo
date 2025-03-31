@@ -226,7 +226,15 @@ class ShaderRenderer {
     this.timeLocation = null;
     this.resolutionLocation = null;
     this.startTime = Date.now();
-    
+    this.uniforms = {
+      time: null,
+      resolution: null,
+      speed: null,
+      color1: null,
+      color2: null,
+      scale: null,
+      intensity: null
+    };
     this.initDefaultShader();
   }
   
@@ -402,53 +410,125 @@ class ShaderGenerator {
     return selectedPattern.call(this);
   }
 
-  // 4D Noise Projection
-  quantumTunnels() {
-    const warpSpeed = (Math.random() * 0.005 + 0.001).toFixed(4);
-    const dimensionCount = Math.floor(Math.random() * 5) + 3;
-    
-    return `
-      precision highp float;
-      uniform float time;
-      uniform vec2 resolution;
-      
-      // 4D Simplex Noise implementation
-      vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
-      vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
-      
-      float snoise(vec4 v) {
-        const vec4 C = vec4(0.138196601125011, 0.276393202250021, 0.414589803375032, -0.447213595499958);
-        vec4 i = floor(v + dot(v, vec4(0.309016994374947451)) );
-        vec4 x0 = v - i + dot(i, C.xxxx);
-        // [complex 4D noise implementation continues...]
-      }
+// 4D Noise Projection
+quantumTunnels() {
+  const warpSpeed = (Math.random() * 0.005 + 0.001).toFixed(4);
+  const dimensionCount = Math.floor(Math.random() * 5) + 3;
+  
+  return `
+    precision highp float;
+    uniform float time;
+    uniform vec2 resolution;
 
-      void main() {
-        vec4 st = vec4(gl_FragCoord.xy/resolution.xy, time*0.001, time*0.0005);
-        float pattern = 0.0;
-        
-        for(int i = 0; i < ${dimensionCount}; i++) {
-          float fi = float(i);
-          vec4 warp = vec4(
-            sin(st.z * 0.3 + fi),
-            cos(st.w * 0.4 + fi),
-            sin(st.x * 0.5 + fi),
-            cos(st.y * 0.6 + fi)
-          );
-          pattern += snoise(st * 8.0 + warp * 2.0) * 0.5;
-          st.xy = mat2(cos(pattern), -sin(pattern), sin(pattern), cos(pattern)) * st.xy;
-        }
-        
-        vec3 color = vec3(
-          sin(pattern * 5.0 + time * ${warpSpeed}),
-          cos(pattern * 3.0 + time * ${warpSpeed}),
-          sin(pattern * 7.0 + time * ${warpSpeed})
-        ) * 0.5 + 0.5;
-        
-        gl_FragColor = vec4(color * (1.0 - length(st.xy)), 1.0);
+    // CENTRALIZED HELPERS
+    vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+    vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+    vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+    vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+    // ADD MISSING GRAD4 FUNCTION
+    vec4 grad4(float j, vec4 ip) {
+      const vec4 ones = vec4(1.0, 1.0, 1.0, -1.0);
+      vec4 p,s;
+      p.xyz = floor(fract(vec3(j) * ip.xyz) * 7.0) * ip.z - 1.0;
+      p.w = 1.5 - dot(abs(p.xyz), ones.xyz);
+      s = vec4(lessThan(p, vec4(0.0)));
+      p.xyz += (s.xyz*2.0 - 1.0) * s.www; 
+      return p;
+    }
+
+    float snoise(vec4 v) {
+      const vec4 C = vec4( 
+        0.138196601125011,   // (5 - sqrt(5))/20  G4
+        0.276393202250021,   // 2 * G4
+        0.414589803375032,   // 3 * G4
+        -0.447213595499958   // -1 + 4 * G4
+      );
+      
+      // First corner
+      vec4 i = floor(v + dot(v, vec4(0.309016994374947451)));
+      vec4 x0 = v - i + dot(i, C.xxxx);
+      
+      // Rank sorting
+      vec4 i0;
+      vec3 isX = step(x0.yzw, x0.xxx);
+      vec3 isYZ = step(x0.zww, x0.yyz);
+      
+      i0.x = isX.x + isX.y + isX.z;
+      i0.yzw = 1.0 - isX;
+      
+      i0.y += isYZ.x + isYZ.y;
+      i0.zw += 1.0 - isYZ.xy;
+      i0.z += isYZ.z;
+      i0.w += 1.0 - isYZ.z;
+      
+      // i0 now contains unique values
+      vec4 i3 = clamp(i0, 0.0, 1.0);
+      vec4 i2 = clamp(i0-1.0, 0.0, 1.0);
+      vec4 i1_ = clamp(i0-2.0, 0.0, 1.0); // RENAMED
+      
+      // Positions
+      vec3 x1 = x0.xyz - i1_.xyz + C.xxx;
+      vec3 x2 = x0.xyz - i2.xyz + C.yyy;
+      vec3 x3 = x0.xyz - i3.xyz + C.zzz;
+      vec3 x4 = x0.xyz + C.www;
+      
+      // Permutations
+      i = mod(i, 289.0); 
+      float j0 = permute(permute(permute(permute(i.w) + i.z) + i.y) + i.x);
+      vec4 j1 = permute(permute(permute(permute(
+                i.w + vec4(i1_.w, i2.w, i3.w, 1.0))
+              + i.z + vec4(i1_.z, i2.z, i3.z, 1.0))
+              + i.y + vec4(i1_.y, i2.y, i3.y, 1.0))
+              + i.x + vec4(i1_.x, i2.x, i3.x, 1.0));
+      
+      // Gradients
+      vec4 ip = vec4(1.0/294.0, 1.0/49.0, 1.0/7.0, 0.0);
+      vec4 p0 = grad4(j0, ip);
+      vec4 p1 = grad4(j1.x, ip);
+      vec4 p2 = grad4(j1.y, ip);
+      vec4 p3 = grad4(j1.z, ip);
+      vec4 p4 = grad4(j1.w, ip);
+      
+      // Normalize
+      vec3 m0 = max(0.6 - vec3(dot(x0,x0), dot(x1,x1), dot(x2,x2)), 0.0);
+      vec3 m1 = max(0.6 - vec3(dot(x3,x3), dot(x4,x4)), 0.0);
+      vec3 m0sq = m0 * m0;
+      
+      vec4 n0 = vec4(dot(p0.xyz, x0), dot(p1.xyz, x1), 
+                    dot(p2.xyz, x2), dot(p3.xyz, x3)) * m0sq * m0sq;
+      float n1 = dot(p4.xyz, x4) * (m1.x * m1.x) * (m1.x * m1.x);
+      
+      return 72.0 * (dot(n0, vec4(m0)) + n1); // FIXED DOT PRODUCT
+    }
+
+    void main() {
+      vec4 st = vec4(gl_FragCoord.xy/resolution.xy, time*0.001, time*0.0005);
+      float pattern = 0.0;
+      
+      for(int i = 0; i < ${dimensionCount}; i++) {
+        float fi = float(i);
+        vec4 warp = vec4(
+          sin(st.z * 0.3 + fi),
+          cos(st.w * 0.4 + fi),
+          sin(st.x * 0.5 + fi),
+          cos(st.y * 0.6 + fi)
+        );
+        pattern += snoise(st * 8.0 + warp * 2.0) * 0.5;
+        st.xy = mat2(cos(pattern), -sin(pattern), 
+                    sin(pattern), cos(pattern)) * st.xy;
       }
-    `;
-  }
+      
+      vec3 color = vec3(
+        sin(pattern * 5.0 + time * ${warpSpeed}),
+        cos(pattern * 3.0 + time * ${warpSpeed}),
+        sin(pattern * 7.0 + time * ${warpSpeed})
+      ) * 0.5 + 0.5;
+      
+      gl_FragColor = vec4(color * (1.0 - length(st.xy)), 1.0);
+    }
+  `;
+}
 
 colorGradient() {
     const layers = Math.floor(Math.random() * 5) + 3;
@@ -617,7 +697,7 @@ colorGradient() {
     `;
   }
 
-  noise() {
+noise() {
     const dimensions = Math.floor(Math.random() * 3) + 2;
     const fractalLayers = Math.floor(Math.random() * 6) + 3;
     
@@ -626,17 +706,84 @@ colorGradient() {
       uniform float time;
       uniform vec2 resolution;
       
-      // 3D Simplex Noise
-      vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-      vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-      vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
-      vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
-      
-      float snoise(vec3 v) {
-        const vec2 C = vec2(1.0/6.0, 1.0/3.0);
-        const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
-        // ... full 3D simplex noise implementation ...
-      }
+    
+ float snoise(vec3 v) {
+    const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+    const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+
+    // First corner
+    vec3 i = floor(v + dot(v, C.yyy));
+    vec3 x0 = v - i + dot(i, C.xxx);
+
+    // Other corners
+    vec3 g = step(x0.yzx, x0.xyz);
+    vec3 l = 1.0 - g;
+    vec3 i1 = min(g.xyz, l.zxy);
+    vec3 i2 = max(g.xyz, l.zxy);
+
+    vec3 x1 = x0 - i1 + C.xxx;
+    vec3 x2 = x0 - i2 + C.yyy;
+    vec3 x3 = x0 - D.yyy;
+
+    // Permutations
+    i = mod289(i); 
+    vec4 p = permute(permute(permute( 
+        i.z + vec4(0.0, i1.z, i2.z, 1.0))
+        + i.y + vec4(0.0, i1.y, i2.y, 1.0)) 
+        + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+
+    // Gradients: 7x7 points over a square, mapped onto an octahedron
+    float n_ = 0.142857142857; // 1/7
+    vec3 ns = n_ * D.wyz - D.xzx;
+
+    vec4 j = p - 49.0 * floor(p * ns.z * ns.z); // mod(p,7*7)
+
+    vec4 x_ = floor(j * ns.z);
+    vec4 y_ = floor(j - 7.0 * x_); // mod(j,N)
+
+    vec4 x = x_ * ns.x + ns.yyyy;
+    vec4 y = y_ * ns.x + ns.yyyy;
+    vec4 h = 1.0 - abs(x) - abs(y);
+
+    vec4 b0 = vec4(x.xy, y.xy);
+    vec4 b1 = vec4(x.zw, y.zw);
+
+    vec4 s0 = floor(b0)*2.0 + 1.0;
+    vec4 s1 = floor(b1)*2.0 + 1.0;
+    vec4 sh = -step(h, vec4(0.0));
+
+    vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+    vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+
+    vec3 p0 = vec3(a0.xy, h.x);
+    vec3 p1 = vec3(a0.zw, h.y);
+    vec3 p2 = vec3(a1.xy, h.z);
+    vec3 p3 = vec3(a1.zw, h.w);
+
+    // Normalize gradients
+    vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+    p0 *= norm.x;
+    p1 *= norm.y;
+    p2 *= norm.z;
+    p3 *= norm.w;
+
+    // Mix contributions
+    vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+    vec4 m2 = m * m;
+    vec4 m4 = m2 * m2;
+
+    // Noise contribution from each corner
+    vec4 px = vec4(dot(x0,p0), dot(x1,p1), dot(x2,p2), dot(x3,p3));
+
+    // Interpolation and final result
+    return 42.0 * dot(m4, px);
+}
+
+// Helper functions (already defined in your code)
+vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
       
       void main() {
         vec3 st = vec3(gl_FragCoord.xy / resolution.xy, time * 0.001);
